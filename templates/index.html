@@ -327,7 +327,8 @@
     output.textContent = "Working…";
 
     try {
-      const res = await fetch("api/translate", {
+      const apiUrl = location.pathname.replace(/\/+$/, "") + "/api/translate";
+      const res = await fetch(apiUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
