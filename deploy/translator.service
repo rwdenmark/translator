@@ -1,0 +1,22 @@
+[Unit]
+Description=Read into English (translation web app)
+After=network.target
+
+[Service]
+Type=simple
+
+# --- EDIT THESE THREE for your machine ---
+User=youruser
+WorkingDirectory=/opt/translator
+Environment="MYMEMORY_EMAIL=you@example.com"
+# -----------------------------------------
+
+# Uses gunicorn from the project's virtualenv. Binds 0.0.0.0 so other machines
+# on your LAN can reach it at http://<server-ip>:5000.
+ExecStart=/opt/translator/venv/bin/gunicorn app:app --workers 2 --threads 4 --timeout 120 --bind 0.0.0.0:5000
+
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

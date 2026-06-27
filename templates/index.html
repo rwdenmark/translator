@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Translate to English</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,600;1,400&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:      #0f1814;
+    --paper:   #16261e;
+    --english: #1a2e24;
+    --ink:     #d6e6de;
+    --muted:   #8aa899;
+    --line:    #2a4437;
+    --accent:  #8bfac3;
+    --elevated:#243d30;
+    --spark:   #e0b24a;
+    --danger:  #ff7b72;
+    --shadow:  0 1px 2px rgba(0,0,0,.35), 0 16px 44px -18px rgba(0,0,0,.65);
+  }
+
+  * { box-sizing: border-box; }
+  html { color-scheme: dark; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(1100px 500px at 12% -8%, #16261e 0%, transparent 60%),
+      var(--bg);
+    color: var(--ink);
+    font-family: "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: clamp(20px, 5vw, 64px) 20px 40px;
+  }
+
+  header {
+    width: 100%;
+    max-width: 980px;
+    margin-bottom: clamp(20px, 4vw, 36px);
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 8px;
+  }
+  h1 {
+    font-family: "Spectral", Georgia, serif;
+    font-weight: 600;
+    font-size: clamp(30px, 5vw, 46px);
+    line-height: 1.04;
+    margin: 0;
+    letter-spacing: -.01em;
+  }
+  h1 em { font-style: italic; color: var(--accent); }
+
+  .stage {
+    width: 100%;
+    max-width: 980px;
+    display: grid;
+    grid-template-columns: 1fr 64px 1fr;
+    align-items: stretch;
+    background: var(--english);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .panel { display: flex; flex-direction: column; min-height: 320px; }
+  .panel.source { background: var(--paper); }
+
+  .panel-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 16px 20px 10px;
+  }
+  .panel-label {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .count { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  textarea, .output {
+    flex: 1;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    padding: 4px 20px 20px;
+    font-family: "Spectral", Georgia, serif;
+    font-size: 19px;
+    line-height: 1.5;
+    color: var(--ink);
+    resize: none;
+    width: 100%;
+  }
+  textarea::placeholder { color: #5f7468; font-style: italic; }
+  .output { overflow-y: auto; white-space: pre-wrap; }
+  .output.placeholder { color: #5f7468; font-style: italic; }
+
+  .seam {
+    position: relative;
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+    background: linear-gradient(var(--paper), var(--paper)) left / 50% 100% no-repeat,
+                linear-gradient(var(--english), var(--english)) right / 50% 100% no-repeat;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .arrow {
+    width: 26px; height: 26px;
+    color: var(--muted);
+    opacity: .55;
+  }
+
+  .detect {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-4px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 7px 12px;
+    background: var(--elevated);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    white-space: nowrap;
+    box-shadow: 0 6px 18px -8px rgba(0,0,0,.7);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .35s ease, transform .35s ease;
+  }
+  .detect.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .detect .reading {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 9px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--spark);
+  }
+  .detect .lang {
+    font-family: "Spectral", serif;
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .controls {
+    width: 100%;
+    max-width: 980px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+  }
+  button {
+    font-family: "Inter", sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    border-radius: 10px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    padding: 11px 18px;
+    transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+  }
+  .primary {
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 600;
+    box-shadow: 0 8px 20px -12px var(--accent);
+  }
+  .primary:hover { background: #a6ffd4; }
+  .primary:disabled { opacity: .55; cursor: progress; }
+  .ghost { background: transparent; color: var(--muted); border-color: var(--line); }
+  .ghost:hover { color: var(--ink); border-color: var(--muted); }
+  .ghost:disabled { opacity: .4; cursor: default; }
+  .hint { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+  kbd {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    background: var(--elevated);
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    padding: 1px 5px;
+  }
+
+  .error {
+    width: 100%;
+    max-width: 980px;
+    margin-top: 14px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: #2a1714;
+    border: 1px solid #5c2b22;
+    color: #ff9b8f;
+    font-size: 14px;
+    display: none;
+  }
+  .error.show { display: block; }
+
+  .copy {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    padding: 4px 9px;
+    border-radius: 7px;
+  }
+  .copy:hover { color: var(--ink); border-color: var(--muted); }
+  .copy.done { color: var(--accent); border-color: var(--accent); }
+
+  @media (max-width: 720px) {
+    .stage { grid-template-columns: 1fr; }
+    .seam {
+      border: 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+      min-height: 56px;
+      background: var(--paper);
+    }
+    .arrow { transform: rotate(90deg); }
+    .detect { top: 50%; transform: translate(-50%, -50%); }
+    .detect.show { transform: translate(-50%, -50%); }
+    .panel { min-height: 200px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .detect { transition: opacity .01s; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <p class="eyebrow">Auto-detect → English</p>
+    <h1>Type anything. Translate to <em>English</em></h1>
+  </header>
+
+  <main class="stage">
+    <section class="panel source">
+      <div class="panel-head">
+        <span class="panel-label">Any language</span>
+        <span class="count" id="count">0</span>
+      </div>
+      <textarea id="input" placeholder="Hola. Pega tu texto aquí…" autofocus></textarea>
+    </section>
+
+    <div class="seam">
+      <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M5 12h14M13 6l6 6-6 6"/>
+      </svg>
+      <div class="detect" id="detect" aria-live="polite">
+        <span class="reading">Reading</span>
+        <span class="lang" id="detectLang">·</span>
+      </div>
+    </div>
+
+    <section class="panel target">
+      <div class="panel-head">
+        <span class="panel-label">English</span>
+        <button class="copy" id="copy" hidden>Copy</button>
+      </div>
+      <div class="output placeholder" id="output" aria-live="polite">The translation will appear here.</div>
+    </section>
+  </main>
+
+  <div class="controls">
+    <button class="primary" id="go">Translate</button>
+    <button class="ghost" id="clear">Clear</button>
+    <span class="hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd> to translate</span>
+  </div>
+
+  <div class="error" id="error" role="alert"></div>
+
+<script>
+  const input    = document.getElementById("input");
+  const output   = document.getElementById("output");
+  const go        = document.getElementById("go");
+  const clearBtn  = document.getElementById("clear");
+  const count     = document.getElementById("count");
+  const detectBadge = document.getElementById("detect");
+  const detectLang = document.getElementById("detectLang");
+  const errorBox  = document.getElementById("error");
+  const copyBtn   = document.getElementById("copy");
+
+  input.addEventListener("input", () => {
+    count.textContent = input.value.trim().length;
+  });
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.classList.add("show");
+  }
+  function clearError() {
+    errorBox.classList.remove("show");
+  }
+
+  async function translate() {
+    const text = input.value.trim();
+    clearError();
+    detectBadge.classList.remove("show");
+    if (!text) { input.focus(); return; }
+
+    go.disabled = true;
+    go.textContent = "Translating…";
+    output.classList.add("placeholder");
+    output.textContent = "Working…";
+
+    try {
+      const res = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        output.textContent = "The translation will appear here.";
+        showError(data.error || "Something went wrong.");
+        return;
+      }
+
+      detectLang.textContent = data.detected_name;
+      detectBadge.classList.add("show");
+
+      output.classList.remove("placeholder");
+      output.textContent = data.translation;
+      copyBtn.hidden = false;
+      copyBtn.textContent = "Copy";
+      copyBtn.classList.remove("done");
+
+      if (data.already_english) {
+        showError("That already looks like English. Showing it unchanged.");
+      }
+    } catch (e) {
+      output.textContent = "The translation will appear here.";
+      showError("Couldn't reach the server. Is it still running?");
+    } finally {
+      go.disabled = false;
+      go.textContent = "Translate";
+    }
+  }
+
+  go.addEventListener("click", translate);
+
+  input.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+      e.preventDefault();
+      translate();
+    }
+  });
+
+  clearBtn.addEventListener("click", () => {
+    input.value = "";
+    count.textContent = "0";
+    output.classList.add("placeholder");
+    output.textContent = "The translation will appear here.";
+    detectBadge.classList.remove("show");
+    copyBtn.hidden = true;
+    clearError();
+    input.focus();
+  });
+
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(output.textContent);
+      copyBtn.textContent = "Copied";
+      copyBtn.classList.add("done");
+      setTimeout(() => {
+        copyBtn.textContent = "Copy";
+        copyBtn.classList.remove("done");
+      }, 1500);
+    } catch (_) {}
+  });
+</script>
+</body>
+</html>

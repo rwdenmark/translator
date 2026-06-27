@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: read-into-english
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # Render injects $PORT; gunicorn must bind it. Threads (not just workers)
+    # because the work is I/O-bound — each request waits on MyMemory's network
+    # call, so threads give concurrency cheaply on the free tier's 0.1 CPU.
+    startCommand: gunicorn app:app --workers 2 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT
+    envVars:
+      # Set the actual value in the Render dashboard (sync:false keeps it out
+      # of source control). This raises the MyMemory daily limit to ~50k words.
+      - key: MYMEMORY_EMAIL
+        sync: false
