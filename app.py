@@ -161,6 +161,15 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/api/health")
+def health():
+    # CORS-open so the portfolio site can check this deploy cross-origin and
+    # route the Live Demo link to the self-hosted box when it's up.
+    resp = jsonify(status="ok")
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    return resp
+
+
 @app.route("/api/translate", methods=["POST"])
 def api_translate():
     payload = request.get_json(silent=True) or {}

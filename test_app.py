@@ -88,6 +88,12 @@ class ApiTranslate(unittest.TestCase):
     def test_empty_input(self):
         self.assertEqual(self._post("   ").status_code, 400)
 
+    def test_health_is_ok_and_cors_open(self):
+        r = self.client.get("/api/health")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.get_json()["status"], "ok")
+        self.assertEqual(r.headers["Access-Control-Allow-Origin"], "*")
+
     def test_english_short_circuits_without_calling_mymemory(self):
         with patch.object(app, "translate_chunk") as tc:
             r = self._post("Hello, how are you doing today my friend?")
