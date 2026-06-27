@@ -202,8 +202,10 @@ def api_translate():
         if source_lang is None:
             return jsonify({"error": "Couldn't figure out the language. Try a longer phrase."}), 422
     except RuntimeError as e:
+        app.logger.warning("MyMemory returned an error: %s", e)
         return jsonify({"error": str(e)}), 502
-    except requests.RequestException:
+    except requests.RequestException as e:
+        app.logger.warning("Could not reach MyMemory: %r", e)
         return jsonify({"error": "Couldn't reach the translation service. Check your connection."}), 502
 
     return jsonify({

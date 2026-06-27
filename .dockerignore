@@ -1,0 +1,8 @@
+.git/
+__pycache__/
+*.pyc
+.idea/
+venv/
+.venv/
+test_app.py
+_preview.html
