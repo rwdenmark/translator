@@ -1,5 +1,5 @@
 [Unit]
-Description=Read into English (translation web app)
+Description=Translate to English (translation web app)
 After=network.target
 
 [Service]

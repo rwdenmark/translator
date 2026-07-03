@@ -1,4 +1,4 @@
-# Read into English
+# Translate to English
 
 A tiny web app. Type text in any language on the left, and it auto-detects the
 language and shows you the English on the right. Powered by the free
@@ -23,8 +23,11 @@ short input the app uses the translation itself as a tie-breaker. When MyMemory
 has no translation for the source language it was given, it echoes the input
 straight back. The app treats that mirrored result as a signal the guess was
 wrong, then tries the next candidate language until one returns something
-different. If none do, it reports that it couldn't identify the language instead
-of showing a wrong answer.
+different. Two escape hatches keep real words from getting stuck in that loop.
+A single short word that mirrors under a confident detection is accepted as a
+cognate, so "no" and "Hotel" come back as themselves. And if every candidate
+mirrors, the input is treated as English, which is what a mirrored short
+English phrase usually is.
 
 Worked example: `Muy Bien` is detected as German, `de|en` echoes back `Muy bien`
 (a mirror), so the app falls through to Spanish, `es|en` returns `Very good`, and

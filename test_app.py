@@ -8,9 +8,10 @@ import app
 
 
 class _G:
-    """Stand-in for a langdetect guess (carries a .lang attribute)."""
-    def __init__(self, lang):
+    """Stand-in for a langdetect guess (carries .lang and .prob attributes)."""
+    def __init__(self, lang, prob=0.99):
         self.lang = lang
+        self.prob = prob
 
 
 class _FakeResponse:
@@ -43,9 +44,10 @@ class NormalizeAndMirror(unittest.TestCase):
 
 
 class CandidateLangs(unittest.TestCase):
-    def test_drops_english_and_dedupes_keeping_order(self):
+    def test_dedupes_keeping_order_with_english_last(self):
         result = app.candidate_langs(["de", "en", "es", "de"])
-        self.assertNotIn("en", result)
+        self.assertNotIn("en", result[:-1])
+        self.assertEqual(result[-1], "en")
         self.assertEqual(result[:2], ["de", "es"])
 
     def test_falls_back_to_common_languages(self):
@@ -55,8 +57,8 @@ class CandidateLangs(unittest.TestCase):
             if code != "de":
                 self.assertIn(code, result)
 
-    def test_empty_ranking_uses_fallback_only(self):
-        self.assertEqual(app.candidate_langs([]), app.FALLBACK_LANGS)
+    def test_empty_ranking_uses_fallback_then_english(self):
+        self.assertEqual(app.candidate_langs([]), app.FALLBACK_LANGS + ["en"])
 
 
 class Chunking(unittest.TestCase):
@@ -145,12 +147,12 @@ class TranslateShort(unittest.TestCase):
         self.assertEqual(lang, "es")
         self.assertEqual(out, "Very good")
 
-    def test_returns_none_when_every_candidate_mirrors(self):
+    def test_falls_through_to_english_when_every_candidate_mirrors(self):
         with patch.object(app, "candidate_langs", return_value=["de", "es", "fr"]), \
              patch.object(app, "translate_chunk", side_effect=lambda c, l: c):
             lang, out = app.translate_short("Muy Bien", [])
-        self.assertIsNone(lang)
-        self.assertIsNone(out)
+        self.assertEqual(lang, "en")
+        self.assertEqual(out, "Muy Bien")
 
     def test_first_candidate_wins_when_it_translates(self):
         with patch.object(app, "candidate_langs", return_value=["es", "de"]), \
@@ -164,6 +166,37 @@ class TranslateShort(unittest.TestCase):
              patch.object(app, "translate_chunk", side_effect=lambda c, l: calls.append(l) or c):
             app.translate_short("xx", [])
         self.assertEqual(len(calls), app.MAX_DETECT_ATTEMPTS)
+
+    def test_confident_single_word_mirror_is_accepted_as_cognate(self):
+        calls = []
+        with patch.object(app, "translate_chunk", side_effect=lambda c, l: calls.append(l) or c):
+            lang, out = app.translate_short("no", ["es"], {"es": 0.95})
+        self.assertEqual(lang, "es")
+        self.assertEqual(out, "no")
+        self.assertEqual(calls, ["es"])  # one call, no retries burned
+
+    def test_low_confidence_single_word_mirror_keeps_retrying(self):
+        table = {("no", "es"): "no", ("no", "fr"): "not"}
+        with patch.object(app, "candidate_langs", return_value=["es", "fr"]), \
+             patch.object(app, "translate_chunk", side_effect=lambda c, l: table[(c, l)]):
+            lang, out = app.translate_short("no", ["es"], {"es": 0.4})
+        self.assertEqual(lang, "fr")
+        self.assertEqual(out, "not")
+
+    def test_multi_word_mirror_is_never_a_cognate(self):
+        table = {("Muy Bien", "de"): "Muy bien", ("Muy Bien", "es"): "Very good"}
+        with patch.object(app, "candidate_langs", return_value=["de", "es"]), \
+             patch.object(app, "translate_chunk", side_effect=lambda c, l: table[(c, l)]):
+            lang, out = app.translate_short("Muy Bien", ["de"], {"de": 0.99})
+        self.assertEqual(lang, "es")
+        self.assertEqual(out, "Very good")
+
+    def test_long_single_token_mirror_is_never_a_cognate(self):
+        token = "Grundstücksverkehr"  # over the cognate length cap
+        with patch.object(app, "candidate_langs", return_value=["de"]), \
+             patch.object(app, "translate_chunk", side_effect=lambda c, l: c):
+            lang, out = app.translate_short(token, ["de"], {"de": 0.99})
+        self.assertEqual(lang, "en")  # fell through instead of trusting the echo
 
 
 class ApiTranslate(unittest.TestCase):
@@ -203,12 +236,40 @@ class ApiTranslate(unittest.TestCase):
         self.assertEqual(body["detected_name"], "Spanish")
         self.assertEqual(body["translation"], "Very good")
 
-    def test_undetectable_short_phrase_returns_422(self):
-        with patch.object(app, "detect_langs", return_value=[_G("de")]), \
+    def test_short_phrase_that_mirrors_everywhere_ends_as_english(self):
+        # Misdetected short English used to dead-end in a 422. Now the English
+        # fallback catches it and returns the input unchanged.
+        with patch.object(app, "detect_langs", return_value=[_G("de", 0.5)]), \
              patch.object(app, "candidate_langs", return_value=["de", "es"]), \
              patch.object(app, "translate_chunk", side_effect=lambda c, l: c):
-            r = self._post("zzz")
-        self.assertEqual(r.status_code, 422)
+            r = self._post("hello there friend")
+        body = r.get_json()
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(body["already_english"])
+        self.assertEqual(body["detected_code"], "en")
+        self.assertEqual(body["translation"], "hello there friend")
+
+    def test_spanish_no_returns_no_in_one_call(self):
+        with patch.object(app, "detect_langs", return_value=[_G("es", 0.9)]), \
+             patch.object(app, "translate_chunk", side_effect=lambda c, l: c) as tc:
+            r = self._post("no")
+        body = r.get_json()
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(body["detected_code"], "es")
+        self.assertEqual(body["translation"], "no")
+        self.assertFalse(body["already_english"])
+        self.assertEqual(tc.call_count, 1)
+
+    def test_german_hotel_mirror_is_accepted(self):
+        with patch.object(app, "detect_langs", return_value=[_G("de", 0.85)]), \
+             patch.object(app, "translate_chunk", side_effect=lambda c, l: c) as tc:
+            r = self._post("Hotel")
+        body = r.get_json()
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(body["detected_code"], "de")
+        self.assertEqual(body["detected_name"], "German")
+        self.assertEqual(body["translation"], "Hotel")
+        self.assertEqual(tc.call_count, 1)
 
     def test_long_input_detects_once_and_translates_each_chunk(self):
         with patch.object(app, "detect_langs", return_value=[_G("fr")]), \
@@ -231,6 +292,55 @@ class ApiTranslate(unittest.TestCase):
             r.get_json()["error"],
             "The translation service returned an error. Try again in a minute.",
         )
+
+
+class Paragraphs(unittest.TestCase):
+    """Blank lines used to be flattened by the chunker's space join. Now the
+    text splits on paragraph boundaries first and the separators come back."""
+
+    LONG_PARA = ("El zorro salta sobre el perro. " * 20).strip()  # two chunks
+
+    def test_split_keeps_exact_separators_and_round_trips(self):
+        text = "uno\n\ndos\n \ntres\n\n\ncuatro"
+        parts = app.split_paragraphs(text)
+        self.assertEqual("".join(parts), text)
+        self.assertEqual(parts[1::2], ["\n\n", "\n \n", "\n\n\n"])
+        self.assertEqual(parts[0::2], ["uno", "dos", "tres", "cuatro"])
+
+    def test_single_paragraph_output_matches_the_old_join(self):
+        with patch.object(app, "translate_chunk", side_effect=lambda c, l: c.upper()):
+            got = app.translate_paragraphs(self.LONG_PARA, "es")
+            old = " ".join(c.upper() for c in app.chunk_text(self.LONG_PARA)).strip()
+        self.assertEqual(got, old)
+
+    def test_three_paragraphs_keep_blank_lines_at_no_extra_cost(self):
+        text = "\n\n".join([self.LONG_PARA] * 3)
+        per_para_chunks = len(app.chunk_text(self.LONG_PARA))
+        self.assertGreater(per_para_chunks, 1)  # sanity, forces the long path
+        client = app.app.test_client()
+        app._rate_buckets.clear()
+        with patch.object(app, "detect_langs", return_value=[_G("es")]), \
+             patch.object(app, "translate_chunk", side_effect=lambda c, l: "T") as tc:
+            r = client.post("/api/translate", json={"text": text})
+        body = r.get_json()
+        self.assertEqual(r.status_code, 200)
+        para_out = " ".join(["T"] * per_para_chunks)
+        self.assertEqual(body["translation"], "\n\n".join([para_out] * 3))
+        # Same chunker per paragraph, so the quota cost is still one call per chunk.
+        self.assertEqual(tc.call_count, per_para_chunks * 3)
+
+    def test_mixed_double_and_single_newlines_survive(self):
+        text = self.LONG_PARA + "\n\n" + "línea uno\nlínea dos"
+        client = app.app.test_client()
+        app._rate_buckets.clear()
+        with patch.object(app, "detect_langs", return_value=[_G("es")]), \
+             patch.object(app, "translate_chunk", side_effect=lambda c, l: c.upper()):
+            r = client.post("/api/translate", json={"text": text})
+        body = r.get_json()
+        self.assertEqual(r.status_code, 200)
+        first = " ".join(c.upper() for c in app.chunk_text(self.LONG_PARA))
+        # The short paragraph fits one chunk, so its inner newline rides along.
+        self.assertEqual(body["translation"], first + "\n\n" + "LÍNEA UNO\nLÍNEA DOS")
 
 
 class InputSizeCap(unittest.TestCase):

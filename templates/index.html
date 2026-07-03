@@ -395,6 +395,7 @@
   });
 
   copyBtn.addEventListener("click", async () => {
+    const copyFailMsg = "Couldn't copy, select the text instead.";
     try {
       await navigator.clipboard.writeText(output.textContent);
       copyBtn.textContent = "Copied";
@@ -403,7 +404,13 @@
         copyBtn.textContent = "Copy";
         copyBtn.classList.remove("done");
       }, 1500);
-    } catch (_) {}
+    } catch (_) {
+      showNotice(copyFailMsg);
+      setTimeout(() => {
+        // Only clear our own message, a newer one stays put.
+        if (errorBox.textContent === copyFailMsg) clearError();
+      }, 3000);
+    }
   });
 </script>
 </body>
