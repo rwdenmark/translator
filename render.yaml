@@ -3,6 +3,7 @@ services:
     name: read-into-english
     runtime: python
     plan: free
+    healthCheckPath: /api/health
     buildCommand: pip install -r requirements.txt
     # Render injects $PORT and gunicorn must bind it. Threads (not just workers)
     # because the work is I/O-bound. Each request waits on MyMemory's network

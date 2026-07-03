@@ -50,6 +50,9 @@ Then open <http://127.0.0.1:5000> in your browser.
 - The daily limit for anonymous use is about 5,000 words/day. Setting
   `MYMEMORY_EMAIL` raises it to roughly 50,000/day. When you hit the cap,
   the app shows MyMemory's "used all free translations for today" message.
+- One request takes at most 5,000 characters, and each address gets 10
+  requests a minute. Both caps keep a single visitor from burning the shared
+  daily quota.
 - Detection on short text is imperfect. A two- or three-word phrase in
   Russian can be misread as another Cyrillic language. The self-correcting step
   above recovers many of these, but longer input still detects more reliably.

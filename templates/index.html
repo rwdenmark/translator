@@ -216,6 +216,13 @@
   }
   .error.show { display: block; }
 
+  /* Info variant of the message box, for notes that aren't failures. */
+  .notice {
+    background: var(--elevated);
+    border-color: var(--line);
+    color: var(--muted);
+  }
+
   .copy {
     font-family: "IBM Plex Mono", monospace;
     font-size: 10px;
@@ -260,7 +267,7 @@
     <section class="panel source">
       <div class="panel-head">
         <span class="panel-label">Any language</span>
-        <span class="count" id="count">0</span>
+        <span class="count" id="count">0 characters</span>
       </div>
       <textarea id="input" placeholder="Hola. Pega tu texto aquí…" autofocus></textarea>
     </section>
@@ -304,12 +311,17 @@
   const copyBtn   = document.getElementById("copy");
 
   input.addEventListener("input", () => {
-    count.textContent = input.value.trim().length;
+    count.textContent = input.value.trim().length + " characters";
   });
 
   function showError(msg) {
     errorBox.textContent = msg;
+    errorBox.classList.remove("notice");
     errorBox.classList.add("show");
+  }
+  function showNotice(msg) {
+    errorBox.textContent = msg;
+    errorBox.classList.add("notice", "show");
   }
   function clearError() {
     errorBox.classList.remove("show");
@@ -351,7 +363,7 @@
       copyBtn.classList.remove("done");
 
       if (data.already_english) {
-        showError("That already looks like English. Showing it unchanged.");
+        showNotice("That already looks like English. Showing it unchanged.");
       }
     } catch (e) {
       output.textContent = "The translation will appear here.";
@@ -373,7 +385,7 @@
 
   clearBtn.addEventListener("click", () => {
     input.value = "";
-    count.textContent = "0";
+    count.textContent = "0 characters";
     output.classList.add("placeholder");
     output.textContent = "The translation will appear here.";
     detectBadge.classList.remove("show");

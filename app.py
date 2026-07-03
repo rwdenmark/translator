@@ -3,6 +3,9 @@ MyMemory rejects "auto" as a source language, so we detect locally first."""
 
 import os
 import re
+import time
+from collections import defaultdict, deque
+
 import requests
 from flask import Flask, request, jsonify, render_template
 from langdetect import detect_langs, DetectorFactory, LangDetectException
@@ -17,6 +20,14 @@ MYMEMORY_URL = "https://api.mymemory.translated.net/get"
 CONTACT_EMAIL = os.environ.get("MYMEMORY_EMAIL", "").strip()
 
 MAX_CHUNK_BYTES = 480  # MyMemory caps each request at 500 bytes of input
+
+MAX_INPUT_BYTES = 5000  # cap one request's input so a giant paste can't hog the worker
+
+# Rate limiting for /api/translate. In-memory and per-process, which is enough
+# for one small box. A restart clears the counters and that's fine.
+RATE_LIMIT_MAX = 10  # requests allowed per window per address
+RATE_LIMIT_WINDOW = 60  # seconds
+_rate_buckets = defaultdict(deque)  # address -> recent request times
 
 # Short input detects poorly, so we let the translation correct the guess: if
 # MyMemory echoes the input back, the source was wrong and we try the next of
@@ -46,6 +57,26 @@ LANG_NAMES = {
 
 def byte_len(text):
     return len(text.encode("utf-8"))
+
+
+def _now():
+    """Split out so tests can move the clock without patching time itself."""
+    return time.monotonic()
+
+
+def rate_limited(address):
+    """True when this address has spent its allowance for the current window.
+    The address is best-effort identity. request.remote_addr is the direct
+    peer, so behind a proxy every client can share one bucket unless the proxy
+    forwards the real address. Good enough for a small self-hosted app."""
+    bucket = _rate_buckets[address]
+    now = _now()
+    while bucket and now - bucket[0] >= RATE_LIMIT_WINDOW:
+        bucket.popleft()
+    if len(bucket) >= RATE_LIMIT_MAX:
+        return True
+    bucket.append(now)
+    return False
 
 
 def chunk_text(text):
@@ -120,7 +151,11 @@ def translate_chunk(chunk, source_lang):
 
     if data.get("responseStatus") not in (200, "200"):  # quota / service error
         raise RuntimeError(data.get("responseDetails") or "Translation service error")
-    return data.get("responseData", {}).get("translatedText", "")
+    body = data.get("responseData")
+    if not isinstance(body, dict):
+        # MyMemory sometimes puts an error string here even with status 200.
+        raise RuntimeError(f"Unexpected responseData shape: {body!r}")
+    return body.get("translatedText", "")
 
 
 def normalize(text):
@@ -171,10 +206,15 @@ def health():
 
 @app.route("/api/translate", methods=["POST"])
 def api_translate():
+    if rate_limited(request.remote_addr or "unknown"):
+        return jsonify({"error": "Slow down a little. Try again in a minute."}), 429
+
     payload = request.get_json(silent=True) or {}
     text = (payload.get("text") or "").strip()
     if not text:
         return jsonify({"error": "Type something to translate."}), 400
+    if byte_len(text) > MAX_INPUT_BYTES:
+        return jsonify({"error": "That's too much text at once. Keep it under 5,000 characters."}), 413
 
     try:
         ranked = [guess.lang for guess in detect_langs(text)]
@@ -202,7 +242,7 @@ def api_translate():
             return jsonify({"error": "Couldn't figure out the language. Try a longer phrase."}), 422
     except RuntimeError as e:
         app.logger.warning("MyMemory returned an error: %s", e)
-        return jsonify({"error": str(e)}), 502
+        return jsonify({"error": "The translation service returned an error. Try again in a minute."}), 502
     except requests.RequestException as e:
         app.logger.warning("Could not reach MyMemory: %r", e)
         return jsonify({"error": "Couldn't reach the translation service. Check your connection."}), 502
