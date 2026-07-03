@@ -12,6 +12,7 @@ a 403. So this app does it in two steps.
 1. Detect the language locally with `langdetect` (free, offline, no limit).
 2. Translate from the detected language into English via MyMemory, splitting
    long input into <500-byte chunks because that's MyMemory's per-request cap.
+   Long input goes paragraph by paragraph, so blank lines survive translation.
 
 Your input goes to *your* server first, which then calls MyMemory, so there's no
 API key sitting in the browser.
@@ -29,7 +30,7 @@ cognate, so "no" and "Hotel" come back as themselves. And if every candidate
 mirrors, the input is treated as English, which is what a mirrored short
 English phrase usually is.
 
-Worked example: `Muy Bien` is detected as German, `de|en` echoes back `Muy bien`
+Worked example. `Muy Bien` is detected as German, `de|en` echoes back `Muy bien`
 (a mirror), so the app falls through to Spanish, `es|en` returns `Very good`, and
 the badge corrects to Spanish.
 
@@ -39,7 +40,7 @@ the badge corrects to Spanish.
 # 1. (optional) create a virtual environment
 python3 -m venv venv && source venv/bin/activate      # Windows: venv\Scripts\activate
 
-# 2. install dependencies
+# 2. install the pinned dependencies
 pip install -r requirements.txt
 
 # 3. start the server
@@ -52,7 +53,7 @@ Then open <http://127.0.0.1:5000> in your browser.
 
 - The daily limit for anonymous use is about 5,000 words/day. Setting
   `MYMEMORY_EMAIL` raises it to roughly 50,000/day. When you hit the cap,
-  the app shows MyMemory's "used all free translations for today" message.
+  the app shows its fixed try-again message and logs the MyMemory detail.
 - One request takes at most 5,000 characters, and each address gets 10
   requests a minute. Both caps keep a single visitor from burning the shared
   daily quota.
@@ -73,4 +74,5 @@ The repo ships three deploy paths. The `Dockerfile` builds an image that runs
 gunicorn on port 8080 as a non-root user. `deploy/translator.service` is a
 systemd unit that runs gunicorn on port 5000 from a project virtualenv, so edit
 the placeholders at the top before installing it. `render.yaml` deploys to
-Render's free tier and reads `MYMEMORY_EMAIL` from the dashboard.
+Render's free tier, health-checks `/api/health`, and reads `MYMEMORY_EMAIL`
+from the dashboard.

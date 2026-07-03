@@ -29,7 +29,7 @@ RATE_LIMIT_MAX = 10  # requests allowed per window per address
 RATE_LIMIT_WINDOW = 60  # seconds
 _rate_buckets = defaultdict(deque)  # address -> recent request times
 
-# Short input detects poorly, so we let the translation correct the guess: if
+# Short input detects poorly, so we let the translation correct the guess. If
 # MyMemory echoes the input back, the source was wrong and we try the next of
 # these, ordered by rough global commonness.
 FALLBACK_LANGS = ["es", "fr", "de", "it", "pt", "nl", "ru", "pl", "tr", "sv", "id", "vi"]

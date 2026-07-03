@@ -287,7 +287,7 @@ class ApiTranslate(unittest.TestCase):
              patch.object(app, "translate_chunk", side_effect=RuntimeError("USED ALL FREE TRANSLATIONS")):
             r = self._post("Hallo")
         self.assertEqual(r.status_code, 502)
-        # The upstream detail stays in the log, never in the response body.
+        # The upstream detail goes to the log. The client gets the fixed message.
         self.assertEqual(
             r.get_json()["error"],
             "The translation service returned an error. Try again in a minute.",
