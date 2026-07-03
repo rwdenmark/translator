@@ -135,8 +135,8 @@ def is_mirror(source, translated):
 
 
 def candidate_langs(ranked):
-    """Source languages to try, best first: detection's ranking then the
-    common-language fallback, with English and duplicates removed."""
+    """Source languages to try, best first. Detection's ranking comes first, then
+    the common-language fallback, with English and duplicates removed."""
     seen = set()
     result = []
     for code in [*ranked, *FALLBACK_LANGS]:
@@ -163,8 +163,7 @@ def index():
 
 @app.route("/api/health")
 def health():
-    # CORS-open so the portfolio site can check this deploy cross-origin and
-    # route the Live Demo link to the self-hosted box when it's up.
+    # CORS-open health check so external monitors can read the status cross-origin.
     resp = jsonify(status="ok")
     resp.headers["Access-Control-Allow-Origin"] = "*"
     return resp

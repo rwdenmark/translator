@@ -1,5 +1,5 @@
-"""Tests for the self-correcting detection logic. MyMemory is never called:
-every test stubs translate_chunk so the suite runs offline and deterministically."""
+"""Tests for the self-correcting detection logic. MyMemory is never called.
+Every test stubs translate_chunk so the suite runs offline and deterministically."""
 
 import unittest
 from unittest.mock import patch
