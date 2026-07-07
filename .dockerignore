@@ -1,7 +1,12 @@
+# Keep the image to app code only.
 .git/
+.github/
 __pycache__/
 *.pyc
 .idea/
 venv/
 .venv/
 test_app.py
+README.md
+deploy/
+render.yaml

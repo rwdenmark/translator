@@ -1,7 +1,9 @@
 name: CI
 
+# Push runs are limited to main so a same-repo pull request doesn't run twice.
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:

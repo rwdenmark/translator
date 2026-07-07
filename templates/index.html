@@ -287,7 +287,7 @@
         <span class="panel-label">English</span>
         <button class="copy" id="copy" hidden>Copy</button>
       </div>
-      <div class="output placeholder" id="output" aria-live="polite">The translation will appear here.</div>
+      <div class="output placeholder" id="output" aria-live="polite"></div>
     </section>
   </main>
 
@@ -300,15 +300,23 @@
   <div class="error" id="error" role="alert"></div>
 
 <script>
+  const PLACEHOLDER = "The translation will appear here.";
+
   const input    = document.getElementById("input");
   const output   = document.getElementById("output");
-  const go        = document.getElementById("go");
+  const translateBtn = document.getElementById("go");
   const clearBtn  = document.getElementById("clear");
   const count     = document.getElementById("count");
   const detectBadge = document.getElementById("detect");
   const detectLang = document.getElementById("detectLang");
   const errorBox  = document.getElementById("error");
   const copyBtn   = document.getElementById("copy");
+
+  function resetOutput() {
+    output.classList.add("placeholder");
+    output.textContent = PLACEHOLDER;
+  }
+  resetOutput();
 
   input.addEventListener("input", () => {
     count.textContent = input.value.trim().length + " characters";
@@ -333,8 +341,8 @@
     detectBadge.classList.remove("show");
     if (!text) { input.focus(); return; }
 
-    go.disabled = true;
-    go.textContent = "Translating…";
+    translateBtn.disabled = true;
+    translateBtn.textContent = "Translating…";
     output.classList.add("placeholder");
     output.textContent = "Working…";
 
@@ -348,7 +356,7 @@
       const data = await res.json();
 
       if (!res.ok) {
-        output.textContent = "The translation will appear here.";
+        resetOutput();
         showError(data.error || "Something went wrong.");
         return;
       }
@@ -366,15 +374,15 @@
         showNotice("That already looks like English. Showing it unchanged.");
       }
     } catch (e) {
-      output.textContent = "The translation will appear here.";
+      resetOutput();
       showError("Couldn't reach the server. Is it still running?");
     } finally {
-      go.disabled = false;
-      go.textContent = "Translate";
+      translateBtn.disabled = false;
+      translateBtn.textContent = "Translate";
     }
   }
 
-  go.addEventListener("click", translate);
+  translateBtn.addEventListener("click", translate);
 
   input.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
@@ -386,8 +394,7 @@
   clearBtn.addEventListener("click", () => {
     input.value = "";
     count.textContent = "0 characters";
-    output.classList.add("placeholder");
-    output.textContent = "The translation will appear here.";
+    resetOutput();
     detectBadge.classList.remove("show");
     copyBtn.hidden = true;
     clearError();

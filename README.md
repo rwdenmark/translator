@@ -14,8 +14,9 @@ a 403. So this app does it in two steps.
    long input into <500-byte chunks because that's MyMemory's per-request cap.
    Long input goes paragraph by paragraph, so blank lines survive translation.
 
-Your input goes to *your* server first, which then calls MyMemory, so there's no
-API key sitting in the browser.
+Your input goes to *your* server first, which then calls MyMemory. MyMemory
+doesn't use API keys, so there's no secret to protect. The server hop exists so
+detection, chunking, and rate limiting all live in one place.
 
 ### Self-correcting detection on short input
 
@@ -51,28 +52,26 @@ Then open <http://127.0.0.1:5000> in your browser.
 
 ## Good to know
 
-- The daily limit for anonymous use is about 5,000 words/day. Setting
-  `MYMEMORY_EMAIL` raises it to roughly 50,000/day. When you hit the cap,
+- The daily limit for anonymous use is about 5,000 chars/day. Setting
+  `MYMEMORY_EMAIL` raises it to roughly 50,000 chars/day. When you hit the cap,
   the app shows its fixed try-again message and logs the MyMemory detail.
-- One request takes at most 5,000 characters, and each address gets 10
+- One request takes at most 5,000 bytes of UTF-8, and each address gets 10
   requests a minute. Both caps keep a single visitor from burning the shared
   daily quota.
 - Detection on short text is imperfect. A two- or three-word phrase in
   Russian can be misread as another Cyrillic language. The self-correcting step
   above recovers many of these, but longer input still detects more reliably.
-  This is a limitation of free detection, not a bug.
 - Short input can cost extra quota. When the first guess mirrors, the app
   retries other languages, up to six MyMemory calls for one ambiguous phrase.
   Correct first guesses still cost one call. The cap lives in
   `MAX_DETECT_ATTEMPTS`.
-- Quality comes from MyMemory's translation-memory matches plus machine
-  translation fallback. It's strong on common phrases, weaker on rare ones.
+- Translation quality is strongest on common phrases and weaker on rare ones.
 
 ## Deploy
 
 The repo ships three deploy paths. The `Dockerfile` builds an image that runs
 gunicorn on port 8080 as a non-root user. `deploy/translator.service` is a
-systemd unit that runs gunicorn on port 5000 from a project virtualenv, so edit
+systemd unit that runs gunicorn on port 8085 from a project virtualenv, so edit
 the placeholders at the top before installing it. `render.yaml` deploys to
 Render's free tier, health-checks `/api/health`, and reads `MYMEMORY_EMAIL`
 from the dashboard.

@@ -11,6 +11,10 @@ services:
     startCommand: gunicorn app:app --workers 2 --threads 4 --timeout 120 --bind 0.0.0.0:$PORT
     envVars:
       # Set the actual value in the Render dashboard (sync:false keeps it out
-      # of source control). This raises the MyMemory daily limit to ~50k words.
+      # of source control). This raises the MyMemory daily limit to ~50k chars.
       - key: MYMEMORY_EMAIL
         sync: false
+      # Render fronts the app with its proxy, so rate limiting must read
+      # the rightmost X-Forwarded-For hop to see the real visitor address.
+      - key: TRUST_PROXY
+        value: "1"
